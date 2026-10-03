@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>Yönetim</title>
+<style>
+body{font-family:system-ui,sans-serif;background:#fff3f7;color:#4a3340;max-width:760px;margin:auto;padding:18px}
+h2{color:#ff6b8f;margin-top:28px}
+.box{background:#fff;border-radius:16px;padding:16px;margin:12px 0;box-shadow:0 4px 14px #ff7e9d25}
+input,textarea{width:100%;padding:10px;margin:5px 0;border:1px solid #f0c6d3;border-radius:10px;font:inherit}
+button{background:#ff6b8f;color:#fff;border:0;border-radius:20px;padding:10px 18px;font-weight:700;cursor:pointer;margin:4px 4px 4px 0}
+button.g{background:#aaa}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.row img{width:70px;height:70px;object-fit:cover;border-radius:10px;background:#eee}
+.row>div{flex:1;min-width:180px}
+small{color:#8a6a78}#msg{position:sticky;bottom:10px;background:#333;color:#fff;padding:12px;border-radius:12px;display:none}
+</style></head><body>
+<h1>💌 Yönetim Paneli</h1>
+<div class="box" id="login">
+<b>GitHub bağlantısı</b><br><small>Fotoğraf ve müzikler GitHub deponuza yüklenir, Vercel siteyi otomatik günceller. Token sadece bu tarayıcıda saklanır.</small>
+<input id="o" placeholder="GitHub kullanıcı adı"><input id="r" placeholder="Depo (repo) adı"><input id="b" placeholder="Branch (varsayılan: main)">
+<input id="k" type="password" placeholder="GitHub token (Contents: Read & Write)">
+<button onclick="saveCfg()">Kaydet ve Aç</button></div>
+<div id="panel" style="display:none">
+<h2>Yazılar</h2><div class="box">
+<input id="title" placeholder="Başlık"><input id="sub" placeholder="Alt başlık">
+<textarea id="letter" rows="8" placeholder="Mektup (satır atlayarak paragraf yap)"></textarea>
+<input id="question" placeholder="Soru metni">
+<textarea id="reasons" rows="5" placeholder="Sebepler (her satıra bir tane)"></textarea></div>
+<h2>Fotoğraflar</h2><div id="ph"></div><button class="g" onclick="addPh()">+ Fotoğraf yeri ekle</button>
+<h2>Müzikler</h2><div id="sg"></div>
+<div class="box"><b>Yeni şarkı ekle</b>
+<input id="sn" placeholder="Şarkı adı"><small>Şarkı dosyası (mp3):</small><input id="sf" type="file" accept="audio/*">
+<small>Plak kapak resmi (isteğe bağlı):</small><input id="sc" type="file" accept="image/*">
+<button onclick="addSong()">Şarkıyı Listeye Ekle</button></div>
+<hr><button onclick="preview()" class="g">👁 Önizle</button><button onclick="publish()">🚀 Yayınla</button>
+<p><small>Yayınladıktan sonra Vercel ~1 dakikada siteyi günceller.</small></p></div>
+<div id="msg"></div>
+<script>
+const $=s=>document.getElementById(s);let D,C=JSON.parse(localStorage.getItem('cfg')||'null');
+const say=t=>{$('msg').style.display='block';$('msg').textContent=t};
+function saveCfg(){C={o:$('o').value.trim(),r:$('r').value.trim(),b:$('b').value.trim()||'main',k:$('k').value.trim()};
+ if(!C.o||!C.r||!C.k)return say('Tüm alanları doldur');localStorage.setItem('cfg',JSON.stringify(C));start()}
+async function start(){
+ $('login').style.display='none';$('panel').style.display='block';
+ D=await (await fetch('data.json?'+Date.now())).json();draw()}
+function sync(){D.title=$('title').value;D.sub=$('sub').value;D.letter=$('letter').value;D.question=$('question').value;
+ D.reasons=$('reasons').value.split('\n').filter(x=>x.trim())}
+function draw(){
+ $('title').value=D.title;$('sub').value=D.sub;$('letter').value=D.letter;$('question').value=D.question;$('reasons').value=D.reasons.join('\n');
+ $('ph').innerHTML=D.photos.map((p,k)=>`<div class="box row"><img src="${p._u||p.src||''}" alt="boş"><div>
+ <input value="${(p.cap||'').replace(/"/g,'&quot;')}" onchange="D.photos[${k}].cap=this.value" placeholder="Yazı">
+ <input type="file" accept="image/*" onchange="setPh(${k},this.files[0])"></div><button class="g" onclick="D.photos.splice(${k},1);draw()">Sil</button></div>`).join('');
+ $('sg').innerHTML=D.songs.map((s,k)=>`<div class="box row"><img src="${s._cu||s.cover||''}" alt="kapak" style="border-radius:50%"><div><b>${s.title}</b></div>
+ <button class="g" onclick="D.songs.splice(${k},1);draw()">Sil</button></div>`).join('')||'<small>Henüz şarkı yok</small>'}
+function setPh(k,f){if(!f)return;sync();D.photos[k]._f=f;D.photos[k]._u=URL.createObjectURL(f);draw()}
+function addPh(){sync();D.photos.push({src:'',cap:''});draw()}
+function addSong(){sync();const f=$('sf').files[0],c=$('sc').files[0];if(!f||!$('sn').value)return say('Şarkı adı ve dosya gerekli');
+ D.songs.push({title:$('sn').value,src:'',cover:'',_f:f,_c:c,_cu:c?URL.createObjectURL(c):''});
+ $('sn').value='';$('sf').value='';$('sc').value='';draw()}
+const clean=()=>JSON.stringify(D,(k,v)=>k[0]==='_'?undefined:v,2);
+function preview(){sync();localStorage.setItem('draft',clean());window.open('/?preview','_blank')}
+const H=()=>({Authorization:'Bearer '+C.k,Accept:'application/vnd.github+json'});
+const b64f=f=>new Promise(r=>{const x=new FileReader();x.onload=()=>r(x.result.split(',')[1]);x.readAsDataURL(f)});
+async function put(path,content){
+ const u=`https://api.github.com/repos/${C.o}/${C.r}/contents/${path}`;let sha;
+ const g=await fetch(u+'?ref='+C.b,{headers:H()});if(g.ok)sha=(await g.json()).sha;
+ const res=await fetch(u,{method:'PUT',headers:H(),body:JSON.stringify({message:'Site güncellemesi',content,branch:C.b,sha})});
+ if(!res.ok)throw new Error((await res.json()).message)}
+const up=async f=>{const p='uploads/'+Date.now()+'-'+f.name.replace(/[^\w.-]/g,'_');await put(p,await b64f(f));return '/'+p};
+async function publish(){
+ try{sync();say('Yükleniyor… lütfen bekle ⏳');
+ for(const p of D.photos)if(p._f){p.src=await up(p._f);delete p._f;delete p._u}
+ for(const s of D.songs){if(s._f){s.src=await up(s._f);delete s._f}if(s._c){s.cover=await up(s._c);delete s._c;delete s._cu}}
+ await put('data.json',btoa(unescape(encodeURIComponent(clean()))));
+ say('Yayınlandı ✅ Vercel birazdan siteyi güncelleyecek.')}
+ catch(e){say('Hata: '+e.message)}}
+if(C)start();
+</script></body></html>
